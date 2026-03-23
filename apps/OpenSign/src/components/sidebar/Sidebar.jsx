@@ -3,7 +3,7 @@ import Menu from "./Menu";
 import Submenu from "./SubMenu";
 import SocialMedia from "../SocialMedia";
 import dp from "../../assets/images/dp.png";
-import sidebarList, { subSetting } from "../../json/menuJson";
+import sidebarList from "../../json/menuJson";
 import { useNavigate } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
 import { useWindowSize } from "../../hook/useWindowSize";
@@ -40,22 +40,7 @@ const Sidebar = () => {
 
   const menuItem = async () => {
     try {
-      if (localStorage.getItem("defaultmenuid")) {
-        const Extand_Class = localStorage.getItem("Extand_Class");
-        const extClass = Extand_Class && JSON.parse(Extand_Class);
-        const userRole = extClass?.[0]?.UserRole || "contracts_User";
-        const isAdmin =
-          userRole === "contracts_Admin" || userRole === "contracts_OrgAdmin";
-        const newSidebarList = sidebarList.map((item) => {
-          if (item.title !== "Settings") return item;
-          const newItem = { ...item };
-          const baseChildren = isAdmin ? subSetting : subSetting?.slice(0, 1);
-            const mysignature = newItem.children.slice(0, 1);
-            newItem.children = [...mysignature, ...baseChildren];
-          return newItem;
-        });
-        setmenuList(newSidebarList);
-      }
+      setmenuList(sidebarList);
     } catch (e) {
       console.error("Problem", e);
     }
@@ -137,9 +122,9 @@ const Sidebar = () => {
           )}
         </ul>
       </nav>
-        <footer className="my-3 flex justify-center items-center text-[25px] text-base-content gap-3">
-          <SocialMedia />
-        </footer>
+      <footer className="my-3 flex justify-center items-center text-[25px] text-base-content gap-3">
+        <SocialMedia />
+      </footer>
     </aside>
   );
 };
