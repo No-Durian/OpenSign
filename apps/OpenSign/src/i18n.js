@@ -11,7 +11,7 @@ i18n
     backend: {
       loadPath: "/locales/{{lng}}/{{ns}}.json"
     },
-    fallbackLng: "en", // Fallback to English if no other language is detected
+    fallbackLng: ["zh", "en"], // 优先中文，缺失时回退到英文
     detection: {
       // Specifies the default language to fall back to if the detected language is not available.
       order: ["localStorage", "navigator"],
@@ -25,7 +25,7 @@ i18n
     interpolation: {
       escapeValue: false // Not needed for react as it escapes by default
     },
-    whitelist: ["en", "es", "fr", "it", "de", "hi", "kr"] // List of allowed languages
+    supportedLngs: ["zh", "en", "es", "fr", "it", "de", "hi", "kr"] // List of allowed languages
   });
 
 export default i18n;

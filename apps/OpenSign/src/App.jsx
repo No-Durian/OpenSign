@@ -36,6 +36,18 @@ const Preferences = lazyWithRetry(() => import("./pages/Preferences"));
 const Login = lazyWithRetry(() => import("./pages/Login"));
 const VerifyDocument = lazyWithRetry(() => import("./pages/VerifyDocument"));
 const EmailBuilder = lazyWithRetry(() => import("./pages/EmailBuilder"));
+const PolicySearch = lazyWithRetry(
+  () => import("./pages/enterprise/PolicySearch")
+);
+const PolicyManagement = lazyWithRetry(
+  () => import("./pages/enterprise/PolicyManagement")
+);
+const PolicyMessageBoard = lazyWithRetry(
+  () => import("./pages/enterprise/PolicyMessageBoard")
+);
+const ComplianceAssistant = lazyWithRetry(
+  () => import("./pages/enterprise/ComplianceAssistant")
+);
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
 const AppLoader = () => {
@@ -52,6 +64,9 @@ function App() {
     const id = process.env.REACT_APP_APPID ?? "opensign";
     localStorage.setItem("parseAppId", id);
     localStorage.setItem("baseUrl", `${serverUrl_fn()}/`);
+    if (!localStorage.getItem("i18nextLng")) {
+      localStorage.setItem("i18nextLng", "zh");
+    }
     hideUpgradeProgress();
     localStorage.removeItem("showUpgradeProgress");
     setIsLoading(false);
@@ -67,11 +82,11 @@ function App() {
           <Routes>
             <Route element={<ValidateRoute />}>
               <Route exact path="/" element={<Lazy Page={Login} />} />
-                  <Route path="/addadmin" element={<Lazy Page={AddAdmin} />} />
-                  <Route
-                    path="/upgrade-2.1"
-                    element={<Lazy Page={UpdateExistUserAdmin} />}
-                  />
+              <Route path="/addadmin" element={<Lazy Page={AddAdmin} />} />
+              <Route
+                path="/upgrade-2.1"
+                element={<Lazy Page={UpdateExistUserAdmin} />}
+              />
             </Route>
             <Route element={<Validate />}>
               <Route
@@ -85,16 +100,16 @@ function App() {
               element={<Lazy Page={GuestLogin} />}
             />
             <Route path="/debugpdf" element={<Lazy Page={DebugPdf} />} />
-              <Route
-                path="/forgetpassword"
-                element={<Lazy Page={ForgetPassword} />}
-              />
+            <Route
+              path="/forgetpassword"
+              element={<Lazy Page={ForgetPassword} />}
+            />
             <Route element={<HomeLayout />}>
-                  <Route path="/users" element={<UserList />} />
-                  <Route
-                    path="/changepassword"
-                    element={<Lazy Page={ChangePassword} />}
-                  />
+              <Route path="/users" element={<UserList />} />
+              <Route
+                path="/changepassword"
+                element={<Lazy Page={ChangePassword} />}
+              />
               <Route path="/form/:id" element={<Form />} />
               <Route path="/report/:id" element={<Report />} />
               <Route path="/dashboard/:id" element={<Dashboard />} />
@@ -136,6 +151,22 @@ function App() {
               <Route
                 path="/preferences"
                 element={<Lazy Page={Preferences} />}
+              />
+              <Route
+                path="/policy-search"
+                element={<Lazy Page={PolicySearch} />}
+              />
+              <Route
+                path="/policy-management"
+                element={<Lazy Page={PolicyManagement} />}
+              />
+              <Route
+                path="/policy-message-board"
+                element={<Lazy Page={PolicyMessageBoard} />}
+              />
+              <Route
+                path="/compliance-ai"
+                element={<Lazy Page={ComplianceAssistant} />}
               />
             </Route>
             <Route path="/success" element={<DocSuccessPage />} />
