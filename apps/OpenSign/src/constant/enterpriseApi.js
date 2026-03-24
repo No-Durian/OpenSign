@@ -10,6 +10,10 @@ export function getEnterpriseApiUrl(path = "") {
   return `${base}/enterprise${path}`;
 }
 
+export async function fetchEnterpriseConfig() {
+  const { data } = await axios.get(getEnterpriseApiUrl("/config"));
+  return data;
+}
 export async function fetchEnterpriseOverview() {
   const { data } = await axios.get(getEnterpriseApiUrl("/overview"));
   return data;

@@ -1,8 +1,10 @@
 import express from 'express';
 import fs from 'node:fs/promises';
-import fssync from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+
+import { getEnterpriseConfig } from './enterpriseConfig.js';
+import { insertPolicyMessage, listPolicyMessages } from './enterpriseSqlite.js';
 
 const require = createRequire(import.meta.url);
 let XLSX;
@@ -13,11 +15,6 @@ try {
 }
 
 const router = express.Router();
-const DEFAULT_LIBRARY_PATH = 'C:/Users/TCT/Desktop/制度/制度内容';
-const DEFAULT_EXPIRY_PATH = 'C:/Users/TCT/Desktop/制度/检查过期文件';
-const DEFAULT_MANAGEMENT_PATH = 'C:/Users/TCT/Desktop/制度/制度管理';
-const DEFAULT_MESSAGE_FILE = path.resolve('data/enterprise-messages.json');
-const DEFAULT_AI_URL = 'http://172.18.66.18/chat/rmh1ZG3tZOU30MdH';
 const SUPPORTED_POLICY_EXTENSIONS = new Set([
   '.pdf',
   '.doc',
@@ -30,28 +27,67 @@ const SUPPORTED_POLICY_EXTENSIONS = new Set([
   '.txt',
   '.md',
 ]);
+const WORKBOOK_EXTENSIONS = new Set(['.xlsx', '.xls', '.xlsm']);
+const HEADER_ALIASES = {
+  serial: ['序号', '编号', '序', 'serial'],
+  title: [
+    '制度简称',
+    '制度名称',
+    '文件名称',
+    '文件名',
+    '标题',
+    '名称',
+    '制度标题',
+    '制度',
+    'policytitle',
+  ],
+  department: ['发布部门', '部门', '归口部门', '所属部门', '责任部门', '起草部门'],
+  docNo: ['文号', '制度编号', '编号文号', '发文字号', '文件编号', '文件文号'],
+  category: ['制度分类', '分类', '类别', '业务分类', '制度类别'],
+  publishedAt: ['发布时间', '发布日期', '印发日期', '发文日期', '生效日期', '发布日期时间'],
+  publishedYear: ['发布年份', '年份', '年度', '印发年份'],
+  expiryDate: ['有效期', '到期时间', '到期日期', '失效日期', '废止日期', '截止日期'],
+  remark: ['备注', '说明', '备注说明'],
+  libraryHint: ['制度库', '数据库', '知识库', '所属制度库', '所属库', '库名称'],
+  originalFileName: ['原文文件名', '制度原文', '原文名称', '原文文件', '附件名称', '文件路径'],
+  originalRelativePath: ['原文相对路径', '相对路径', '制度路径', '路径', '文件相对路径'],
+};
 
-function getConfig() {
-  return {
-    libraryRoot: process.env.ENTERPRISE_POLICY_LIBRARY_PATH || DEFAULT_LIBRARY_PATH,
-    expiryRoot: process.env.ENTERPRISE_POLICY_EXPIRY_PATH || DEFAULT_EXPIRY_PATH,
-    managementRoot: process.env.ENTERPRISE_POLICY_MANAGEMENT_PATH || DEFAULT_MANAGEMENT_PATH,
-    messageFile: process.env.ENTERPRISE_MESSAGE_BOARD_FILE || DEFAULT_MESSAGE_FILE,
-    aiAssistantUrl: process.env.ENTERPRISE_AI_ASSISTANT_URL || DEFAULT_AI_URL,
-  };
+function pathExists(targetPath) {
+  return fs.access(targetPath).then(
+    () => true,
+    () => false
+  );
 }
 
-async function pathExists(targetPath) {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
+function normalizeText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u3000]+/g, '')
+    .replace(/[()（）\[\]【】{}《》'"“”‘’`~!@#$%^&*+=|\\/:;,.?<>，。！？；：、-]+/g, '');
+}
+
+function stripExtension(fileName) {
+  return String(fileName || '').replace(/\.[^.]+$/, '');
+}
+
+function getRowValue(row, fieldName) {
+  const aliases = (HEADER_ALIASES[fieldName] || []).map(normalizeText);
+  const entries = Object.entries(row || {}).filter(([, value]) => String(value || '').trim());
+  for (const [key, value] of entries) {
+    const normalizedKey = normalizeText(key);
+    if (!normalizedKey) continue;
+    if (aliases.includes(normalizedKey)) return value;
   }
-}
-
-function isAllowedDocument(fileName) {
-  return SUPPORTED_POLICY_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+  for (const [key, value] of entries) {
+    const normalizedKey = normalizeText(key);
+    if (!normalizedKey) continue;
+    if (aliases.some(alias => normalizedKey.includes(alias) || alias.includes(normalizedKey))) {
+      return value;
+    }
+  }
+  return '';
 }
 
 function toIsoDate(value) {
@@ -74,7 +110,8 @@ function parseExcelDate(value) {
     const normalized = trimmed
       .replace(/[年/.]/g, '-')
       .replace(/月/g, '-')
-      .replace(/日/g, '');
+      .replace(/日/g, '')
+      .replace(/--+/g, '-');
     const parsed = new Date(normalized);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
@@ -99,60 +136,65 @@ function calculateExpiryStatus(expiryDate) {
   return { bucket: 'later', daysLeft: diffDays };
 }
 
-function normalizeWorkbookRow(row) {
-  const title = row['制度简称'] || row['制度名称'] || row['文件名称'] || row['标题'] || '';
-  const department = row['发布部门'] || row['部门'] || '';
-  const docNo = row['文号'] || row['制度编号'] || '';
-  const category = row['制度分类'] || row['分类'] || '';
-  const publishedAt = parseExcelDate(row['发布时间'] || row['发布日期']);
-  const expiryDate = parseExcelDate(row['有效期'] || row['到期时间']);
-  const remark = row['备注'] || '';
+function formatDateCN(value) {
+  if (!value) return '未获取';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '未获取';
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function normalizeWorkbookRow(row, context = {}) {
+  const rawTitle = getRowValue(row, 'title');
+  const rawOriginalFileName = getRowValue(row, 'originalFileName');
+  const originalRelativePath = getRowValue(row, 'originalRelativePath');
+  const publishedAt = parseExcelDate(getRowValue(row, 'publishedAt'));
+  const explicitPublishedYear = String(getRowValue(row, 'publishedYear') || '').trim();
+  const expiryDate = parseExcelDate(getRowValue(row, 'expiryDate'));
   const status = calculateExpiryStatus(expiryDate);
+  const title = String(
+    rawTitle || stripExtension(path.basename(rawOriginalFileName || '')) || ''
+  ).trim();
+  const publishedYear = publishedAt
+    ? String(publishedAt.getFullYear())
+    : explicitPublishedYear
+      ? explicitPublishedYear.replace(/[^\d]/g, '').slice(0, 4)
+      : '';
 
   return {
-    serial: row['序号'] || row['编号'] || '',
-    department,
+    serial: String(getRowValue(row, 'serial') || '').trim(),
+    department: String(getRowValue(row, 'department') || '').trim(),
     title,
-    docNo,
-    category,
+    docNo: String(getRowValue(row, 'docNo') || '').trim(),
+    category: String(getRowValue(row, 'category') || '').trim(),
     publishedAt: toIsoDate(publishedAt),
-    publishedYear: publishedAt ? String(publishedAt.getFullYear()) : '',
+    publishedYear,
     expiryDate: toIsoDate(expiryDate),
-    remark,
+    remark: String(getRowValue(row, 'remark') || '').trim(),
     status: status.bucket,
     daysLeft: status.daysLeft,
+    libraryHint: String(getRowValue(row, 'libraryHint') || '').trim(),
+    originalFileName: String(rawOriginalFileName || '').trim(),
+    originalRelativePath: String(originalRelativePath || '').trim(),
+    sourceWorkbook: context.workbookName || '',
+    sourceSheet: context.sheetName || '',
+    sourceRowNumber: context.rowNumber || null,
   };
 }
 
-async function readFirstWorkbook(expiryRoot) {
-  if (!XLSX || !(await pathExists(expiryRoot))) return [];
-  const entries = await fs.readdir(expiryRoot, { withFileTypes: true });
-  const workbookFile = entries
-    .filter(entry => entry.isFile())
-    .find(entry => ['.xlsx', '.xls', '.xlsm'].includes(path.extname(entry.name).toLowerCase()));
-
-  if (!workbookFile) return [];
-
-  const workbookPath = path.join(expiryRoot, workbookFile.name);
-  const workbook = XLSX.readFile(workbookPath, { cellDates: true });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return [];
-  const sheet = workbook.Sheets[firstSheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-  return rows.map(normalizeWorkbookRow).filter(item => item.title);
-}
-
-async function listFilesRecursively(targetPath, rootPath, libraryName) {
+async function listFilesRecursively(targetPath, rootPath, libraryName, allowedExtensions) {
   const entries = await fs.readdir(targetPath, { withFileTypes: true });
   const files = [];
 
   for (const entry of entries) {
     const absolutePath = path.join(targetPath, entry.name);
     if (entry.isDirectory()) {
-      files.push(...(await listFilesRecursively(absolutePath, rootPath, libraryName)));
+      files.push(
+        ...(await listFilesRecursively(absolutePath, rootPath, libraryName, allowedExtensions))
+      );
       continue;
     }
-    if (!isAllowedDocument(entry.name)) continue;
+    const extension = path.extname(entry.name).toLowerCase();
+    if (!allowedExtensions.has(extension)) continue;
     const stats = await fs.stat(absolutePath);
     files.push({
       fileName: entry.name,
@@ -175,7 +217,12 @@ async function getLibraries(libraryRoot) {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const absolutePath = path.join(libraryRoot, entry.name);
-    const files = await listFilesRecursively(absolutePath, libraryRoot, entry.name);
+    const files = await listFilesRecursively(
+      absolutePath,
+      libraryRoot,
+      entry.name,
+      SUPPORTED_POLICY_EXTENSIONS
+    );
     const latest = files.reduce((max, current) => {
       if (!max) return current.modifiedAt;
       return new Date(current.modifiedAt) > new Date(max) ? current.modifiedAt : max;
@@ -196,45 +243,150 @@ async function getLibraries(libraryRoot) {
 }
 
 function buildFileLookup(libraries) {
-  return libraries
-    .flatMap(library => library.files)
-    .map(file => ({
+  return libraries.flatMap(library =>
+    library.files.map(file => ({
       ...file,
-      normalizedTitle: file.title.toLowerCase(),
-      normalizedName: file.fileName.toLowerCase(),
-    }));
-}
-
-function matchPolicyFile(fileLookup, title, docNo, libraryName) {
-  const titleLower = (title || '').toLowerCase();
-  const docNoLower = (docNo || '').toLowerCase();
-  const scopedFiles = libraryName
-    ? fileLookup.filter(item => item.libraryName === libraryName)
-    : fileLookup;
-
-  return (
-    scopedFiles.find(
-      file =>
-        titleLower &&
-        (file.normalizedTitle.includes(titleLower) || titleLower.includes(file.normalizedTitle))
-    ) ||
-    scopedFiles.find(file => docNoLower && file.normalizedName.includes(docNoLower)) ||
-    null
+      normalizedTitle: normalizeText(file.title),
+      normalizedFileName: normalizeText(file.fileName),
+      normalizedRelativePath: normalizeText(file.relativePath),
+    }))
   );
 }
 
-function formatDateCN(value) {
-  if (!value) return '未获取';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '未获取';
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+function getBestMatch(fileLookup, metadata = {}, preferredLibraryName = '') {
+  const titleText = normalizeText(metadata.title);
+  const docNoText = normalizeText(metadata.docNo);
+  const originalFileNameText = normalizeText(metadata.originalFileName);
+  const originalFileBaseText = normalizeText(stripExtension(metadata.originalFileName));
+  const originalRelativePathText = normalizeText(metadata.originalRelativePath);
+  const libraryHintText = preferredLibraryName || metadata.libraryHint || '';
+  const scopedFiles = preferredLibraryName
+    ? fileLookup.filter(item => item.libraryName === preferredLibraryName)
+    : fileLookup;
+
+  let bestMatch = null;
+  let bestScore = 0;
+  let bestReason = '';
+
+  for (const file of scopedFiles) {
+    let score = 0;
+    let reason = '';
+
+    if (libraryHintText && file.libraryName === libraryHintText) {
+      score += 40;
+      reason = reason || '制度库匹配';
+    }
+    if (originalRelativePathText) {
+      if (file.normalizedRelativePath === originalRelativePathText) {
+        score += 300;
+        reason = '相对路径精确匹配';
+      } else if (file.normalizedRelativePath.includes(originalRelativePathText)) {
+        score += 220;
+        reason = reason || '相对路径包含匹配';
+      }
+    }
+    if (originalFileNameText) {
+      if (file.normalizedFileName === originalFileNameText) {
+        score += 260;
+        reason = '原文文件名精确匹配';
+      } else if (file.normalizedFileName.includes(originalFileNameText)) {
+        score += 180;
+        reason = reason || '原文文件名包含匹配';
+      }
+    }
+    if (originalFileBaseText) {
+      if (file.normalizedTitle === originalFileBaseText) {
+        score += 240;
+        reason = reason || '原文标题精确匹配';
+      } else if (
+        file.normalizedTitle.includes(originalFileBaseText) ||
+        originalFileBaseText.includes(file.normalizedTitle)
+      ) {
+        score += 160;
+        reason = reason || '原文标题模糊匹配';
+      }
+    }
+    if (titleText) {
+      if (file.normalizedTitle === titleText) {
+        score += 220;
+        reason = reason || '制度简称精确匹配';
+      } else if (
+        file.normalizedTitle.includes(titleText) ||
+        titleText.includes(file.normalizedTitle)
+      ) {
+        score += 150;
+        reason = reason || '制度简称模糊匹配';
+      }
+    }
+    if (
+      docNoText &&
+      (file.normalizedFileName.includes(docNoText) ||
+        file.normalizedRelativePath.includes(docNoText))
+    ) {
+      score += 170;
+      reason = reason || '文号匹配';
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestReason = reason;
+      bestMatch = file;
+    }
+  }
+
+  if (!bestMatch || bestScore <= 0) return null;
+  return {
+    ...bestMatch,
+    matchedBy: bestReason || '模糊匹配',
+    score: bestScore,
+  };
+}
+
+async function readWorkbookRecords(expiryRoot) {
+  if (!XLSX || !(await pathExists(expiryRoot))) return [];
+  const workbookFiles = await listFilesRecursively(
+    expiryRoot,
+    expiryRoot,
+    '台账',
+    WORKBOOK_EXTENSIONS
+  );
+  const rows = [];
+
+  for (const workbookFile of workbookFiles) {
+    try {
+      const workbook = XLSX.readFile(workbookFile.absolutePath, { cellDates: true });
+      for (const sheetName of workbook.SheetNames || []) {
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) continue;
+        const sheetRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        sheetRows.forEach((row, index) => {
+          const normalized = normalizeWorkbookRow(row, {
+            workbookName: workbookFile.fileName,
+            sheetName,
+            rowNumber: index + 2,
+          });
+          if (normalized.title || normalized.originalFileName || normalized.docNo) {
+            rows.push(normalized);
+          }
+        });
+      }
+    } catch (error) {
+      console.warn(
+        `failed to read enterprise workbook: ${workbookFile.absolutePath}`,
+        error?.message
+      );
+    }
+  }
+
+  return rows;
 }
 
 async function getOverviewData() {
-  const { libraryRoot, expiryRoot, aiAssistantUrl } = getConfig();
+  const { libraryRoot, expiryRoot, managementRoot, aiAssistantUrl, messageDbPath } =
+    getEnterpriseConfig();
   const libraries = await getLibraries(libraryRoot);
   const fileLookup = buildFileLookup(libraries);
-  const expiryRecords = await readFirstWorkbook(expiryRoot);
+  const expiryRecords = await readWorkbookRecords(expiryRoot);
   const expiredRecords = expiryRecords.filter(item => item.status === 'expired');
   const upcomingRecords = expiryRecords.filter(
     item => item.status !== 'expired' && item.status !== 'later' && item.status !== 'unknown'
@@ -249,9 +401,14 @@ async function getOverviewData() {
     config: {
       libraryRoot,
       expiryRoot,
+      managementRoot,
+      messageDbPath,
       aiAssistantUrl,
+      sqliteOpenExample: `sqlite3 "${messageDbPath}"`,
+      sqliteQueryExample: `sqlite3 "${messageDbPath}" "SELECT id, author, department, created_at FROM policy_messages ORDER BY created_at DESC;"`,
     },
     libraryCount: libraries.length,
+    workbookRecordCount: expiryRecords.length,
     latestLibraryUpdate,
     latestLibraryUpdateLabel: formatDateCN(latestLibraryUpdate),
     libraries: libraries.map(library => ({
@@ -264,63 +421,63 @@ async function getOverviewData() {
     expired: expiredRecords
       .sort((a, b) => new Date(a.expiryDate || 0) - new Date(b.expiryDate || 0))
       .slice(0, 10)
-      .map(item => ({ ...item, file: matchPolicyFile(fileLookup, item.title, item.docNo, null) })),
+      .map(item => ({ ...item, file: getBestMatch(fileLookup, item) })),
     upcoming: upcomingRecords
       .sort((a, b) => (a.daysLeft ?? 9999) - (b.daysLeft ?? 9999))
       .slice(0, 10)
-      .map(item => ({ ...item, file: matchPolicyFile(fileLookup, item.title, item.docNo, null) })),
+      .map(item => ({ ...item, file: getBestMatch(fileLookup, item) })),
   };
 }
 
 async function getSearchPayload(filters = {}) {
-  const { libraryRoot, expiryRoot } = getConfig();
+  const { libraryRoot, expiryRoot } = getEnterpriseConfig();
   const libraries = await getLibraries(libraryRoot);
   const fileLookup = buildFileLookup(libraries);
-  const rows = await readFirstWorkbook(expiryRoot);
-  const keyword = (filters.keyword || '').trim().toLowerCase();
-  const selectedLibrary = filters.library || '';
-  const selectedDepartment = filters.department || '';
-  const selectedYear = filters.year || '';
-  const selectedCategory = filters.category || '';
+  const rows = await readWorkbookRecords(expiryRoot);
+  const keyword = String(filters.keyword || '')
+    .trim()
+    .toLowerCase();
+  const selectedLibrary = String(filters.library || '').trim();
+  const selectedDepartment = String(filters.department || '').trim();
+  const selectedYear = String(filters.year || '').trim();
+  const selectedCategory = String(filters.category || '').trim();
 
-  const filteredRows = rows.filter(item => {
-    if (selectedDepartment && item.department !== selectedDepartment) return false;
-    if (selectedYear && item.publishedYear !== selectedYear) return false;
-    if (selectedCategory && item.category !== selectedCategory) return false;
-    const matchedFile = matchPolicyFile(
-      fileLookup,
-      item.title,
-      item.docNo,
-      selectedLibrary || null
-    );
-    if (selectedLibrary && !matchedFile) return false;
-    if (keyword) {
+  const results = rows
+    .map(item => {
+      const file = getBestMatch(fileLookup, item, selectedLibrary);
+      return {
+        ...item,
+        libraryName: file?.libraryName || item.libraryHint || '未匹配制度库',
+        fileName: file?.fileName || item.originalFileName || '',
+        relativePath: file?.relativePath || item.originalRelativePath || '',
+        canPreview: Boolean(file?.relativePath),
+        matchedBy: file?.matchedBy || '',
+      };
+    })
+    .filter(item => {
+      if (selectedLibrary && item.libraryName !== selectedLibrary) return false;
+      if (selectedDepartment && item.department !== selectedDepartment) return false;
+      if (selectedYear && item.publishedYear !== selectedYear) return false;
+      if (selectedCategory && item.category !== selectedCategory) return false;
+      if (!keyword) return true;
       const haystack = [
         item.title,
         item.department,
         item.docNo,
         item.category,
-        matchedFile?.fileName,
-        matchedFile?.libraryName,
+        item.publishedYear,
+        item.fileName,
+        item.libraryName,
+        item.relativePath,
+        item.sourceWorkbook,
+        item.sourceSheet,
+        item.remark,
       ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
-      if (!haystack.includes(keyword)) return false;
-    }
-    return true;
-  });
-
-  const results = filteredRows.map(item => {
-    const file = matchPolicyFile(fileLookup, item.title, item.docNo, selectedLibrary || null);
-    return {
-      ...item,
-      libraryName: file?.libraryName || '未匹配知识库',
-      fileName: file?.fileName || '',
-      relativePath: file?.relativePath || '',
-      canPreview: Boolean(file?.relativePath),
-    };
-  });
+      return haystack.includes(keyword);
+    });
 
   return {
     filters: {
@@ -341,7 +498,7 @@ async function getSearchPayload(filters = {}) {
 }
 
 async function readManagementData() {
-  const { managementRoot } = getConfig();
+  const { managementRoot } = getEnterpriseConfig();
   const groups = {
     newItems: ['新增', '新增文件'],
     modifiedItems: ['有修改', '修改', '修订'],
@@ -373,7 +530,8 @@ async function readManagementData() {
     const files = await listFilesRecursively(
       path.join(managementRoot, matchedDirectory.name),
       managementRoot,
-      matchedDirectory.name
+      matchedDirectory.name,
+      SUPPORTED_POLICY_EXTENSIONS
     );
     payload[key] = files.map(file => ({
       title: file.title,
@@ -387,35 +545,8 @@ async function readManagementData() {
   return payload;
 }
 
-async function ensureMessageFile(filePath) {
-  const dirPath = path.dirname(filePath);
-  if (!fssync.existsSync(dirPath)) {
-    await fs.mkdir(dirPath, { recursive: true });
-  }
-  if (!fssync.existsSync(filePath)) {
-    await fs.writeFile(filePath, '[]', 'utf8');
-  }
-}
-
-async function readMessages() {
-  const { messageFile } = getConfig();
-  await ensureMessageFile(messageFile);
-  const content = await fs.readFile(messageFile, 'utf8');
-  try {
-    return JSON.parse(content);
-  } catch {
-    return [];
-  }
-}
-
-async function writeMessages(messages) {
-  const { messageFile } = getConfig();
-  await ensureMessageFile(messageFile);
-  await fs.writeFile(messageFile, JSON.stringify(messages, null, 2), 'utf8');
-}
-
 function isAdminRole(role) {
-  return ['admin', 'contracts_Admin', 'contracts_OrgAdmin'].includes(role);
+  return ['admin', 'Admin', 'OrgAdmin', 'contracts_Admin', 'contracts_OrgAdmin'].includes(role);
 }
 
 router.get('/overview', async (_req, res) => {
@@ -425,6 +556,15 @@ router.get('/overview', async (_req, res) => {
   } catch (error) {
     res.status(500).json({ message: '读取制度门户数据失败。', details: error.message });
   }
+});
+
+router.get('/config', (_req, res) => {
+  const config = getEnterpriseConfig();
+  res.json({
+    ...config,
+    sqliteOpenExample: `sqlite3 "${config.messageDbPath}"`,
+    sqliteQueryExample: `sqlite3 "${config.messageDbPath}" "SELECT id, author, department, created_at FROM policy_messages ORDER BY created_at DESC;"`,
+  });
 });
 
 router.get('/search/options', async (_req, res) => {
@@ -460,8 +600,7 @@ router.get('/messages', async (req, res) => {
     if (!isAdminRole(role)) {
       return res.status(403).json({ message: '仅管理员可查看全部留言。' });
     }
-    const messages = await readMessages();
-    res.json(messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+    res.json(listPolicyMessages());
   } catch (error) {
     res.status(500).json({ message: '读取留言失败。', details: error.message });
   }
@@ -473,16 +612,13 @@ router.post('/messages', async (req, res) => {
     if (!content.trim()) {
       return res.status(400).json({ message: '留言内容不能为空。' });
     }
-    const messages = await readMessages();
-    const message = {
+    const message = insertPolicyMessage({
       id: `msg_${Date.now()}`,
       author: author.trim() || '匿名用户',
       department: department.trim(),
       content: content.trim(),
       createdAt: new Date().toISOString(),
-    };
-    messages.push(message);
-    await writeMessages(messages);
+    });
     res.status(201).json(message);
   } catch (error) {
     res.status(500).json({ message: '提交留言失败。', details: error.message });
@@ -490,13 +626,13 @@ router.post('/messages', async (req, res) => {
 });
 
 router.get('/assistant', (_req, res) => {
-  const { aiAssistantUrl } = getConfig();
+  const { aiAssistantUrl } = getEnterpriseConfig();
   res.json({ url: aiAssistantUrl });
 });
 
 router.get('/file', async (req, res) => {
   try {
-    const { libraryRoot, managementRoot } = getConfig();
+    const { libraryRoot, managementRoot } = getEnterpriseConfig();
     const scope = req.query.scope || 'library';
     const relativePath = req.query.relativePath;
     if (!relativePath) {

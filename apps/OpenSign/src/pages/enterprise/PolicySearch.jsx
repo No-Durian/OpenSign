@@ -90,7 +90,7 @@ const PolicySearch = () => {
   return (
     <EnterpriseShell
       title="制度查询模块"
-      description="根据本地制度台账自动读取部门、发布年份与制度分类，并匹配制度库中的原文文件。"
+      description="先读取检查过期文件目录中的 Excel 台账字段（部门、年份、分类等），再到制度内容目录中匹配原文文件。"
       actions={
         <button
           className="op-btn op-btn-primary"
@@ -200,6 +200,7 @@ const PolicySearch = () => {
                   <th>制度分类</th>
                   <th>有效期</th>
                   <th>原文</th>
+                  <th>台账来源</th>
                 </tr>
               </thead>
               <tbody>
@@ -224,19 +225,41 @@ const PolicySearch = () => {
                     </td>
                     <td>
                       {item.canPreview ? (
-                        <a
-                          className="op-link op-link-primary"
-                          href={buildPolicyFileUrl(item.relativePath)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          阅读原文
-                        </a>
+                        <div className="space-y-1">
+                          <a
+                            className="op-link op-link-primary"
+                            href={buildPolicyFileUrl(item.relativePath)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            阅读原文
+                          </a>
+                          <div className="text-xs text-base-content/60">
+                            匹配方式：{item.matchedBy || "文件匹配"}
+                          </div>
+                          <div className="text-xs text-base-content/60 break-all">
+                            路径：{item.relativePath}
+                          </div>
+                        </div>
                       ) : (
-                        <span className="text-xs text-base-content/50">
-                          未匹配到原文
-                        </span>
+                        <div className="text-xs text-base-content/50">
+                          <div>未匹配到原文</div>
+                          {item.originalFileName ? (
+                            <div>台账原文字段：{item.originalFileName}</div>
+                          ) : null}
+                        </div>
                       )}
+                    </td>
+                    <td>
+                      <div className="text-sm">
+                        {item.sourceWorkbook || "未识别工作簿"}
+                      </div>
+                      <div className="text-xs text-base-content/60">
+                        {item.sourceSheet || "未识别工作表"}
+                        {item.sourceRowNumber
+                          ? ` / 第 ${item.sourceRowNumber} 行`
+                          : ""}
+                      </div>
                     </td>
                   </tr>
                 ))}
