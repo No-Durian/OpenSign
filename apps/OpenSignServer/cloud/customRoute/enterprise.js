@@ -600,7 +600,7 @@ router.get('/messages', async (req, res) => {
     if (!isAdminRole(role)) {
       return res.status(403).json({ message: '仅管理员可查看全部留言。' });
     }
-    res.json(listPolicyMessages());
+    res.json(await listPolicyMessages());
   } catch (error) {
     res.status(500).json({ message: '读取留言失败。', details: error.message });
   }
@@ -612,7 +612,7 @@ router.post('/messages', async (req, res) => {
     if (!content.trim()) {
       return res.status(400).json({ message: '留言内容不能为空。' });
     }
-    const message = insertPolicyMessage({
+    const message = await insertPolicyMessage({
       id: `msg_${Date.now()}`,
       author: author.trim() || '匿名用户',
       department: department.trim(),
