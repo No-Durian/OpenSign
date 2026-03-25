@@ -27,15 +27,6 @@ const sidebarList = [
     objectId: "policy-management"
   },
   {
-    icon: "fa-light fa-comments",
-    title: "制度留言板",
-    label: "制度留言板",
-    target: "_self",
-    pageType: "",
-    description: "",
-    objectId: "policy-message-board"
-  },
-  {
     icon: "fa-light fa-robot",
     title: "合规AI助手",
     label: "合规AI助手",

@@ -34,20 +34,6 @@ export async function fetchPolicyManagement() {
   return data;
 }
 
-export async function fetchPolicyMessages(role) {
-  const { data } = await axios.get(getEnterpriseApiUrl("/messages"), {
-    headers: {
-      "x-enterprise-role": role || ""
-    }
-  });
-  return data;
-}
-
-export async function postPolicyMessage(payload) {
-  const { data } = await axios.post(getEnterpriseApiUrl("/messages"), payload);
-  return data;
-}
-
 export async function fetchAiAssistantConfig() {
   const { data } = await axios.get(getEnterpriseApiUrl("/assistant"));
   return data;

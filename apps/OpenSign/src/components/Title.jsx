@@ -8,7 +8,6 @@ const TITLE_MAP = {
   "/dashboard/35KBoSgoAK": "制度门户",
   "/policy-search": "制度查询模块",
   "/policy-management": "制度管理",
-  "/policy-message-board": "制度留言板",
   "/compliance-ai": "合规AI助手",
   "/profile": "个人信息",
   "/changepassword": "修改密码",

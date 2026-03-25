@@ -105,7 +105,7 @@ const EnterprisePortal = () => {
 
       <EnterpriseCard
         title="系统配置"
-        subtitle="制度查询会先读取检查过期文件目录中的 Excel 台账，再去制度内容目录匹配原文。留言板已改为 SQLite 存储。"
+        subtitle="制度查询会先读取检查过期文件目录中的 Excel 台账，再去制度内容目录匹配原文。"
       >
         <div className="space-y-3 text-sm">
           <div>
@@ -124,22 +124,6 @@ const EnterprisePortal = () => {
             <p className="font-semibold">制度管理目录</p>
             <p className="break-all text-base-content/70">
               {data?.config?.managementRoot || "未配置"}
-            </p>
-          </div>
-          <div>
-            <p className="font-semibold">SQLite 数据库文件</p>
-            <p className="break-all text-base-content/70">
-              {data?.config?.messageDbPath || "未配置"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-base-300 bg-base-200/50 p-3 text-xs text-base-content/70">
-            <p>查看数据库示例：</p>
-            <p className="break-all mt-1">
-              {data?.config?.sqliteOpenExample || "sqlite3 <db-path>"}
-            </p>
-            <p className="break-all mt-1">
-              {data?.config?.sqliteQueryExample ||
-                `sqlite3 <db-path> "SELECT * FROM policy_messages;"`}
             </p>
           </div>
         </div>

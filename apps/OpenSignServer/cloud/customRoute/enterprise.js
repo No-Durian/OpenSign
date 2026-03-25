@@ -4,7 +4,6 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 import { getEnterpriseConfig } from './enterpriseConfig.js';
-import { insertPolicyMessage, listPolicyMessages } from './enterpriseSqlite.js';
 
 const require = createRequire(import.meta.url);
 
@@ -464,8 +463,7 @@ async function readWorkbookRecords(expiryRoot) {
 }
 
 async function getOverviewData() {
-  const { libraryRoot, expiryRoot, managementRoot, aiAssistantUrl, messageDbPath } =
-    getEnterpriseConfig();
+  const { libraryRoot, expiryRoot, managementRoot, aiAssistantUrl } = getEnterpriseConfig();
   const libraries = await getLibraries(libraryRoot);
   const fileLookup = buildFileLookup(libraries);
   const expiryRecords = await readWorkbookRecords(expiryRoot);
@@ -484,10 +482,7 @@ async function getOverviewData() {
       libraryRoot,
       expiryRoot,
       managementRoot,
-      messageDbPath,
       aiAssistantUrl,
-      sqliteOpenExample: `sqlite3 "${messageDbPath}"`,
-      sqliteQueryExample: `sqlite3 "${messageDbPath}" "SELECT id, author, department, created_at FROM policy_messages ORDER BY created_at DESC;"`,
       xlsxAvailable: Boolean(XLSX),
     },
     libraryCount: libraries.length,
@@ -629,10 +624,6 @@ async function readManagementData() {
   return payload;
 }
 
-function isAdminRole(role) {
-  return ['admin', 'Admin', 'OrgAdmin', 'contracts_Admin', 'contracts_OrgAdmin'].includes(role);
-}
-
 router.get('/overview', async (_req, res) => {
   try {
     const payload = await getOverviewData();
@@ -646,8 +637,6 @@ router.get('/config', (_req, res) => {
   const config = getEnterpriseConfig();
   res.json({
     ...config,
-    sqliteOpenExample: `sqlite3 "${config.messageDbPath}"`,
-    sqliteQueryExample: `sqlite3 "${config.messageDbPath}" "SELECT id, author, department, created_at FROM policy_messages ORDER BY created_at DESC;"`,
     xlsxAvailable: Boolean(XLSX),
   });
 });
@@ -676,37 +665,6 @@ router.get('/management', async (_req, res) => {
     res.json(payload);
   } catch (error) {
     res.status(500).json({ message: '读取制度管理数据失败。', details: error.message });
-  }
-});
-
-router.get('/messages', async (req, res) => {
-  try {
-    const role = req.headers['x-enterprise-role'] || req.query.role;
-    if (!isAdminRole(role)) {
-      return res.status(403).json({ message: '仅管理员可查看全部留言。' });
-    }
-    res.json(await listPolicyMessages());
-  } catch (error) {
-    res.status(500).json({ message: '读取留言失败。', details: error.message });
-  }
-});
-
-router.post('/messages', async (req, res) => {
-  try {
-    const { author = '匿名用户', department = '', content = '' } = req.body || {};
-    if (!content.trim()) {
-      return res.status(400).json({ message: '留言内容不能为空。' });
-    }
-    const message = await insertPolicyMessage({
-      id: `msg_${Date.now()}`,
-      author: author.trim() || '匿名用户',
-      department: department.trim(),
-      content: content.trim(),
-      createdAt: new Date().toISOString(),
-    });
-    res.status(201).json(message);
-  } catch (error) {
-    res.status(500).json({ message: '提交留言失败。', details: error.message });
   }
 });
 
