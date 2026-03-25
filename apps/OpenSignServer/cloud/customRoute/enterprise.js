@@ -70,6 +70,71 @@ const HEADER_ALIASES = {
   originalRelativePath: ['原文相对路径', '相对路径', '制度路径', '路径', '文件相对路径'],
 };
 
+const NORMALIZED_HEADER_ALIASES = Object.fromEntries(
+  Object.entries(HEADER_ALIASES).map(([field, aliases]) => [field, aliases.map(normalizeText)])
+);
+
+function detectHeaderRowIndex(matrixRows) {
+  for (let rowIndex = 0; rowIndex < matrixRows.length; rowIndex += 1) {
+    const row = matrixRows[rowIndex] || [];
+    const normalizedCells = row.map(cell => normalizeText(cell)).filter(Boolean);
+    if (!normalizedCells.length) continue;
+
+    let matchedFields = 0;
+    for (const aliases of Object.values(NORMALIZED_HEADER_ALIASES)) {
+      if (
+        aliases.some(alias => normalizedCells.some(cell => cell === alias || cell.includes(alias)))
+      ) {
+        matchedFields += 1;
+      }
+    }
+
+    const hasTitleHeader = NORMALIZED_HEADER_ALIASES.title.some(alias =>
+      normalizedCells.some(cell => cell === alias || cell.includes(alias))
+    );
+
+    if (hasTitleHeader && matchedFields >= 3) {
+      return rowIndex;
+    }
+  }
+  return -1;
+}
+
+function sheetToRowObjects(sheet) {
+  const matrixRows = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: '',
+    raw: false,
+  });
+  if (!matrixRows.length) return [];
+
+  const headerRowIndex = detectHeaderRowIndex(matrixRows);
+  if (headerRowIndex < 0) {
+    return XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  }
+
+  const headers = (matrixRows[headerRowIndex] || []).map((value, index) => {
+    const headerName = String(value || '').trim();
+    return headerName || `列${index + 1}`;
+  });
+
+  const rows = [];
+  for (let idx = headerRowIndex + 1; idx < matrixRows.length; idx += 1) {
+    const values = matrixRows[idx] || [];
+    const hasValue = values.some(value => String(value || '').trim());
+    if (!hasValue) continue;
+
+    const rowObject = {};
+    headers.forEach((header, colIndex) => {
+      rowObject[header] = values[colIndex] ?? '';
+    });
+    rowObject.__rowNumber = idx + 1;
+    rows.push(rowObject);
+  }
+
+  return rows;
+}
+
 function pathExists(targetPath) {
   return fs.access(targetPath).then(
     () => true,
@@ -375,12 +440,12 @@ async function readWorkbookRecords(expiryRoot) {
       for (const sheetName of workbook.SheetNames || []) {
         const sheet = workbook.Sheets[sheetName];
         if (!sheet) continue;
-        const sheetRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        const sheetRows = sheetToRowObjects(sheet);
         sheetRows.forEach((row, index) => {
           const normalized = normalizeWorkbookRow(row, {
             workbookName: workbookFile.fileName,
             sheetName,
-            rowNumber: index + 2,
+            rowNumber: row.__rowNumber || index + 2,
           });
           if (normalized.title || normalized.originalFileName || normalized.docNo) {
             rows.push(normalized);
