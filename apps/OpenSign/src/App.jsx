@@ -73,6 +73,22 @@ function App() {
                 path="/compliance-ai"
                 element={<Lazy Page={ComplianceAssistant} />}
               />
+              <Route
+                path="/policy-search"
+                element={<Lazy Page={PolicySearch} />}
+              />
+              <Route
+                path="/policy-management"
+                element={<Lazy Page={PolicyManagement} />}
+              />
+              <Route
+                path="/policy-message-board"
+                element={<Lazy Page={PolicyMessageBoard} />}
+              />
+              <Route
+                path="/compliance-ai"
+                element={<Lazy Page={ComplianceAssistant} />}
+              />
             </Route>
             <Route path="*" element={<PageNotFound />} />
           </Routes>
