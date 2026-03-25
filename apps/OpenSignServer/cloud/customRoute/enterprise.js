@@ -7,11 +7,28 @@ import { getEnterpriseConfig } from './enterpriseConfig.js';
 import { insertPolicyMessage, listPolicyMessages } from './enterpriseSqlite.js';
 
 const require = createRequire(import.meta.url);
-let XLSX;
-try {
-  XLSX = require('../../../OpenSign/node_modules/xlsx');
-} catch (error) {
-  console.warn('xlsx dependency unavailable for enterprise routes:', error?.message);
+
+function loadXlsxModule() {
+  const candidates = [
+    'xlsx',
+    '../../../OpenSign/node_modules/xlsx',
+    '../../../../node_modules/xlsx',
+  ];
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+const XLSX = loadXlsxModule();
+if (!XLSX) {
+  console.warn(
+    'xlsx dependency unavailable for enterprise routes. Install xlsx in OpenSignServer dependencies.'
+  );
 }
 
 const router = express.Router();
@@ -406,6 +423,7 @@ async function getOverviewData() {
       aiAssistantUrl,
       sqliteOpenExample: `sqlite3 "${messageDbPath}"`,
       sqliteQueryExample: `sqlite3 "${messageDbPath}" "SELECT id, author, department, created_at FROM policy_messages ORDER BY created_at DESC;"`,
+      xlsxAvailable: Boolean(XLSX),
     },
     libraryCount: libraries.length,
     workbookRecordCount: expiryRecords.length,
@@ -494,6 +512,7 @@ async function getSearchPayload(filters = {}) {
     },
     total: results.length,
     results,
+    xlsxAvailable: Boolean(XLSX),
   };
 }
 
@@ -564,6 +583,7 @@ router.get('/config', (_req, res) => {
     ...config,
     sqliteOpenExample: `sqlite3 "${config.messageDbPath}"`,
     sqliteQueryExample: `sqlite3 "${config.messageDbPath}" "SELECT id, author, department, created_at FROM policy_messages ORDER BY created_at DESC;"`,
+    xlsxAvailable: Boolean(XLSX),
   });
 });
 
@@ -630,11 +650,67 @@ router.get('/assistant', (_req, res) => {
   res.json({ url: aiAssistantUrl });
 });
 
+function normalizeRelativePathForFilesystem(relativePath) {
+  return String(relativePath || '')
+    .replaceAll('\\', path.sep)
+    .replaceAll('/', path.sep);
+}
+
+async function findLibraryFileByName(fileLookup, fileName, preferredLibrary = '') {
+  const name = String(fileName || '').trim();
+  if (!name) return null;
+  const normalizedName = normalizeText(name);
+  const normalizedBase = normalizeText(stripExtension(name));
+  const scopedFiles = preferredLibrary
+    ? fileLookup.filter(item => item.libraryName === preferredLibrary)
+    : fileLookup;
+
+  return (
+    scopedFiles.find(item => item.normalizedFileName === normalizedName) ||
+    scopedFiles.find(item => item.normalizedTitle === normalizedBase) ||
+    scopedFiles.find(
+      item =>
+        normalizedName &&
+        (item.normalizedFileName.includes(normalizedName) ||
+          normalizedName.includes(item.normalizedFileName))
+    ) ||
+    null
+  );
+}
+
+router.get('/file-by-name', async (req, res) => {
+  try {
+    const { libraryRoot } = getEnterpriseConfig();
+    const fileName = req.query.fileName;
+    const library = String(req.query.library || '').trim();
+    if (!fileName) {
+      return res.status(400).json({ message: '缺少文件名。' });
+    }
+
+    const libraries = await getLibraries(libraryRoot);
+    const fileLookup = buildFileLookup(libraries);
+    const file = await findLibraryFileByName(fileLookup, fileName, library);
+    if (!file) {
+      return res.status(404).json({ message: '未找到对应制度原文文件。' });
+    }
+
+    const resolvedRoot = path.resolve(libraryRoot);
+    const resolvedFile = path.resolve(file.absolutePath);
+    if (!resolvedFile.startsWith(resolvedRoot)) {
+      return res.status(403).json({ message: '非法文件路径。' });
+    }
+
+    res.sendFile(resolvedFile);
+  } catch (error) {
+    res.status(500).json({ message: '按文件名读取制度文件失败。', details: error.message });
+  }
+});
+
 router.get('/file', async (req, res) => {
   try {
     const { libraryRoot, managementRoot } = getEnterpriseConfig();
     const scope = req.query.scope || 'library';
-    const relativePath = req.query.relativePath;
+    const relativePath = normalizeRelativePathForFilesystem(req.query.relativePath);
     if (!relativePath) {
       return res.status(400).json({ message: '缺少文件路径。' });
     }

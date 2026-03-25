@@ -15,7 +15,11 @@ const ComplianceAssistant = () => {
     fetchAiAssistantConfig()
       .then((data) => {
         if (!active) return;
-        setAssistantUrl(data.url || "");
+        const targetUrl = data.url || "";
+        setAssistantUrl(targetUrl);
+        if (targetUrl) {
+          window.location.assign(targetUrl);
+        }
       })
       .catch((err) => {
         if (!active) return;
@@ -34,7 +38,7 @@ const ComplianceAssistant = () => {
   return (
     <EnterpriseShell
       title="合规AI助手"
-      description="已为企业内网预留 Dify 对话入口。若当前网络无法访问内网地址，可在企业网络环境中使用。"
+      description="点击侧边栏后会自动跳转到企业内网 AI 助手地址；如果跳转失败，可使用下方备用按钮。"
     >
       <EnterpriseCard
         title="助手入口"
@@ -51,10 +55,10 @@ const ComplianceAssistant = () => {
             <a
               className="op-btn op-btn-primary"
               href={assistantUrl}
-              target="_blank"
+              target="_self"
               rel="noreferrer"
             >
-              在新窗口打开合规 AI 助手
+              重新跳转到合规 AI 助手
             </a>
             <iframe
               title="合规AI助手"

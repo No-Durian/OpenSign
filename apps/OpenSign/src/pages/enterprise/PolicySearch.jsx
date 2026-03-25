@@ -4,6 +4,7 @@ import EnterpriseShell, {
   EnterpriseCard
 } from "../../components/enterprise/EnterpriseShell";
 import {
+  buildPolicyFileByNameUrl,
   buildPolicyFileUrl,
   fetchEnterpriseSearchOptions,
   searchPolicies
@@ -32,6 +33,7 @@ const PolicySearch = () => {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
+  const [xlsxAvailable, setXlsxAvailable] = useState(true);
 
   useEffect(() => {
     const initialLibrary = searchParams.get("library") || "";
@@ -68,6 +70,7 @@ const PolicySearch = () => {
       const response = await searchPolicies(currentFilters);
       setResults(response.results || []);
       setTotal(response.total || 0);
+      setXlsxAvailable(response.xlsxAvailable !== false);
       setError("");
     } catch (err) {
       setError(err?.response?.data?.message || err.message || "查询制度失败");
@@ -184,6 +187,12 @@ const PolicySearch = () => {
         title="检索结果"
         subtitle={error || "点击“阅读原文”即可打开制度文件。"}
       >
+        {!xlsxAvailable ? (
+          <div className="mb-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-content">
+            当前服务端缺少 xlsx 解析依赖，暂时无法读取“检查过期文件”目录中的
+            Excel。 请在 OpenSignServer 安装 xlsx 后重启服务。
+          </div>
+        ) : null}
         {searching ? (
           <div className="h-[200px] flex justify-center items-center">
             <Loader />
@@ -246,6 +255,22 @@ const PolicySearch = () => {
                           <div>未匹配到原文</div>
                           {item.originalFileName ? (
                             <div>台账原文字段：{item.originalFileName}</div>
+                          ) : null}
+                          {item.originalFileName ? (
+                            <a
+                              className="op-link op-link-secondary"
+                              href={buildPolicyFileByNameUrl(
+                                item.originalFileName,
+                                item.libraryName &&
+                                  item.libraryName !== "未匹配制度库"
+                                  ? item.libraryName
+                                  : ""
+                              )}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              按台账文件名尝试打开原文
+                            </a>
                           ) : null}
                         </div>
                       )}

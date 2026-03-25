@@ -58,3 +58,9 @@ export function buildPolicyFileUrl(relativePath, scope = "library") {
     scope
   )}&relativePath=${encodeURIComponent(relativePath)}`;
 }
+
+export function buildPolicyFileByNameUrl(fileName, library = "") {
+  const params = new URLSearchParams({ fileName: fileName || "" });
+  if (library) params.set("library", library);
+  return `${getEnterpriseApiUrl("/file-by-name")}?${params.toString()}`;
+}
