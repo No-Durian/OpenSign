@@ -1,52 +1,25 @@
 import React from "react";
-import { useTranslation } from "react-i18next";
-import { NavLink } from "react-router";
+
+const placeholders = [
+  "fa-brands fa-github",
+  "fa-brands fa-linkedin",
+  "fa-brands fa-square-x-twitter",
+  "fa-brands fa-discord"
+];
 
 const SocialMedia = () => {
-  const { t } = useTranslation();
-
   return (
     <React.Fragment>
-      <NavLink
-        to="https://github.com/opensignlabs/opensign"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <i aria-hidden="true" className="fa-brands fa-github"></i>
-        <span className="fa-sr-only">
-          OpenSign&apos;s {t("social-media.github")}
+      {placeholders.map((icon) => (
+        <span
+          key={icon}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-base-300 text-base-content/40"
+          aria-hidden="true"
+          title="预留外部链接位置"
+        >
+          <i className={icon}></i>
         </span>
-      </NavLink>
-      <NavLink
-        to="https://www.linkedin.com/company/opensign%E2%84%A2/"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <i aria-hidden="true" className="fa-brands fa-linkedin"></i>
-        <span className="fa-sr-only">
-          OpenSign&apos;s {t("social-media.linked-in")}
-        </span>
-      </NavLink>
-      <NavLink
-        to="https://www.twitter.com/opensignlabs"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <i aria-hidden="true" className="fa-brands fa-square-x-twitter"></i>
-        <span className="fa-sr-only">
-          OpenSign&apos;s {t("social-media.twitter")}
-        </span>
-      </NavLink>
-      <NavLink
-        to="https://discord.com/invite/xe9TDuyAyj"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <i aria-hidden="true" className="fa-brands fa-discord"></i>
-        <span className="fa-sr-only">
-          OpenSign&apos;s {t("social-media.discord")}
-        </span>
-      </NavLink>
+      ))}
     </React.Fragment>
   );
 };

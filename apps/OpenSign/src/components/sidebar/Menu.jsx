@@ -3,8 +3,7 @@ import { useSelector } from "react-redux";
 import { NavLink } from "react-router";
 
 const Menu = ({ item, isOpen, closeSidebar }) => {
-  const appName =
-    "OpenSign™";
+  const appName = "OpenSign™";
   const drivename = appName === "OpenSign™" ? "OpenSign™" : "";
   const { t } = useTranslation();
   const { selectedMenu } = useSelector((state) => state.sidebar);
@@ -28,7 +27,7 @@ const Menu = ({ item, isOpen, closeSidebar }) => {
           <i className={`${item.icon} text-[20px]`} aria-hidden="true"></i>
         </span>
         <span className="flex items-center mb-0.5">
-          {t(`sidebar.${item.title}`, { appName: drivename })}
+          {item.label || t(`sidebar.${item.title}`, { appName: drivename })}
         </span>
       </NavLink>
     </li>
