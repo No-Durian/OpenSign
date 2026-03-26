@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { lazyWithRetry, hideUpgradeProgress } from "./utils";
 import { Routes, Route, BrowserRouter, Navigate } from "react-router";
 import { pdfjs } from "react-pdf";
-import HomeLayout from "./layout/HomeLayout";
 import PageNotFound from "./pages/PageNotFound";
 import Lazy from "./primitives/LazyPage";
 import Loader from "./primitives/Loader";
@@ -45,35 +44,30 @@ function App() {
   }, []);
 
   return (
-    <div className="bg-base-200">
+    <div className="bg-base-200 min-h-screen">
       {isloading ? (
         <AppLoader />
       ) : (
         <BrowserRouter>
           <Title />
           <Routes>
-            <Route element={<HomeLayout />}>
-              <Route
-                path="/"
-                element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
-              />
-              <Route
-                path="/dashboard/:id"
-                element={<Lazy Page={Dashboard} />}
-              />
-              <Route
-                path="/policy-search"
-                element={<Lazy Page={PolicySearch} />}
-              />
-              <Route
-                path="/policy-management"
-                element={<Lazy Page={PolicyManagement} />}
-              />
-              <Route
-                path="/compliance-ai"
-                element={<Lazy Page={ComplianceAssistant} />}
-              />
-            </Route>
+            <Route
+              path="/"
+              element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
+            />
+            <Route path="/dashboard/:id" element={<Lazy Page={Dashboard} />} />
+            <Route
+              path="/policy-search"
+              element={<Lazy Page={PolicySearch} />}
+            />
+            <Route
+              path="/policy-management"
+              element={<Lazy Page={PolicyManagement} />}
+            />
+            <Route
+              path="/compliance-ai"
+              element={<Lazy Page={ComplianceAssistant} />}
+            />
             <Route path="*" element={<PageNotFound />} />
           </Routes>
         </BrowserRouter>
