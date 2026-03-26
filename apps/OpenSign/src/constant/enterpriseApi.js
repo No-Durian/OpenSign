@@ -1,8 +1,26 @@
 import axios from "axios";
 import { serverUrl_fn } from "./appinfo";
 
+function resolveLocalDevApiBase(configuredBase) {
+  try {
+    const configuredUrl = new URL(configuredBase, window.location.origin);
+    const isLocalHost = ["localhost", "127.0.0.1"].includes(
+      window.location.hostname
+    );
+    const isConfiguredRemote =
+      configuredUrl.hostname !== window.location.hostname;
+    if (isLocalHost && isConfiguredRemote) {
+      return `${window.location.origin}/api`;
+    }
+  } catch {
+    // fallback to configured base
+  }
+  return configuredBase;
+}
+
 export function getEnterpriseBaseUrl() {
-  return serverUrl_fn().replace(/\/app\/?$/, "");
+  const configured = serverUrl_fn().replace(/\/app\/?$/, "");
+  return resolveLocalDevApiBase(configured);
 }
 
 export function getEnterpriseApiUrl(path = "") {
@@ -10,33 +28,36 @@ export function getEnterpriseApiUrl(path = "") {
   return `${base}/enterprise${path}`;
 }
 
-export async function fetchEnterpriseConfig() {
-  const { data } = await axios.get(getEnterpriseApiUrl("/config"));
+async function enterpriseGet(path, config = {}) {
+  const { data } = await axios.get(getEnterpriseApiUrl(path), {
+    timeout: 10000,
+    ...config
+  });
   return data;
 }
+
+export async function fetchEnterpriseConfig() {
+  return enterpriseGet("/config");
+}
+
 export async function fetchEnterpriseOverview() {
-  const { data } = await axios.get(getEnterpriseApiUrl("/overview"));
-  return data;
+  return enterpriseGet("/overview");
 }
 
 export async function fetchEnterpriseSearchOptions() {
-  const { data } = await axios.get(getEnterpriseApiUrl("/search/options"));
-  return data;
+  return enterpriseGet("/search/options");
 }
 
 export async function searchPolicies(params) {
-  const { data } = await axios.get(getEnterpriseApiUrl("/search"), { params });
-  return data;
+  return enterpriseGet("/search", { params });
 }
 
 export async function fetchPolicyManagement() {
-  const { data } = await axios.get(getEnterpriseApiUrl("/management"));
-  return data;
+  return enterpriseGet("/management");
 }
 
 export async function fetchAiAssistantConfig() {
-  const { data } = await axios.get(getEnterpriseApiUrl("/assistant"));
-  return data;
+  return enterpriseGet("/assistant");
 }
 
 export function buildPolicyFileUrl(relativePath, scope = "library") {
