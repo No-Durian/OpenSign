@@ -1,3 +1,5 @@
+import { isRealActiveAdmin } from './adminBootstrapUtils.js';
+
 async function updateUserExceptAdmin(data) {
   const Contracts = Parse.Object.extend('contracts_Users');
   let skip = 0;
@@ -48,9 +50,9 @@ export default async function UpdateExistUserAsAdmin(request) {
     }
     const extClsQuery = new Parse.Query('contracts_Users');
     extClsQuery.equalTo('UserRole', 'contracts_Admin');
-    extClsQuery.notEqualTo('IsDisabled', true);
     const extAdminRes = await extClsQuery.find({ useMasterKey: true });
-    if (extAdminRes && extAdminRes.length === 1 && extAdminRes?.[0]?.get('OrganizationId')) {
+    const activeAdmins = (extAdminRes || []).filter(isRealActiveAdmin);
+    if (activeAdmins.length > 0) {
       throw new Parse.Error(
         Parse.Error.DUPLICATE_VALUE,
         'Admin already exists. Please login to the application using admin credentials in order to manage users.'

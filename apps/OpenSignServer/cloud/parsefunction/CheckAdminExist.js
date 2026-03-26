@@ -1,16 +1,16 @@
-// `CheckAdminExist` is used to check is admin with org exist or not in db
+import { isRealActiveAdmin } from './adminBootstrapUtils.js';
+
+// `CheckAdminExist` is used to check whether a real admin already exists
 export default async function CheckAdminExist() {
   try {
     const extClsQuery = new Parse.Query('contracts_Users');
     extClsQuery.equalTo('UserRole', 'contracts_Admin');
-    extClsQuery.notEqualTo('IsDisabled', true);
     const extAdminRes = await extClsQuery.find({ useMasterKey: true });
-    // must be only one admin
-    if (extAdminRes && extAdminRes.length === 1 && extAdminRes?.[0]?.get('OrganizationId')) {
+    const activeAdmins = (extAdminRes || []).filter(isRealActiveAdmin);
+    if (activeAdmins.length > 0) {
       return 'exist';
-    } else {
-      return 'not_exist';
     }
+    return 'not_exist';
   } catch (err) {
     console.log('err in isAdminExist', err);
     const code = err?.code || 400;
