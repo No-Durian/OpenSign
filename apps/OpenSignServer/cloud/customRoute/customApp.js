@@ -1,14 +1,26 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'node:path';
 
 import docxtopdf, { upload as docxUpload } from './docxtopdf.js';
 import decryptpdf, { upload as decryptUpload } from './decryptpdf.js';
 import { deleteUserByAdmin, deleteUserPost } from './deleteAccount/deleteUser.js';
 import { deleteUserGet } from './deleteAccount/deleteUserGet.js';
 import { deleteUserOtp } from './deleteAccount/deleteUserOtp.js';
+import enterpriseRouter from './enterprise.js';
 
 export const app = express();
+
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '../.env'),
+  path.resolve(process.cwd(), '../../.env'),
+];
+
+envCandidates.forEach(envPath => {
+  dotenv.config({ path: envPath, quiet: true });
+});
 
 dotenv.config({ quiet: true });
 app.use(cors());
@@ -21,3 +33,5 @@ app.get('/delete-account/:userId', deleteUserGet);
 app.post('/delete-account/:userId/otp', deleteUserOtp);
 app.post('/delete-account/:userId', deleteUserPost);
 app.post('/deleteuser/:userId', deleteUserByAdmin);
+
+app.use('/enterprise', enterpriseRouter);

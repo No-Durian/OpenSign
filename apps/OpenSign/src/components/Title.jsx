@@ -4,44 +4,21 @@ import { useMemo } from "react";
 import { useManifestUrl } from "../hook/useManifestUrl";
 
 const TITLE_MAP = {
-  "/": "login",
-  // Homelayout
-  "/dashboard/35KBoSgoAK": "Dashboard",
-  "/form/sHAnZphf69": "Sign Yourself",
-  "/form/8mZzFxbG1z": "Request Signatures",
-  "/form/template": "New Template",
-  "/report/6TeaPr321t": "Templates",
-  "/report/4Hhwbp482K": "Need your sign",
-  "/report/1MwEuxLEkF": "In Progress",
-  "/report/kQUoW4hUXz": "Completed",
-  "/report/ByHuevtCFY": "Drafts",
-  "/report/UPr2Fm5WY3": "Declined",
-  "/report/zNqBHXHsYH": "Expired",
-  "/report/contacts": "Contactbook",
-  "/drive": "Drive",
-  "/managesign": "My Signature",
-  "/preferences": "Preferences",
-  "/users": "Users",
-  "/profile": "profile",
-  "/changepassword": "change-password",
-  "/verify-document": "verify-document",
-
-  "/signaturePdf/:docId": "Sign Yourself",
-  "/placeHolderSign/:docId": "Request Signatures",
-  "/template/:templateId": "New Template",
-  "/recipientSignPdf/:docId": "Request Signatures",
-  "/recipientSignPdf/:docId/:contactBookId": "Request Signatures",
-  "/load/recipientSignPdf/:docId/:contactBookId": "Request Signatures",
-
-  // alone
-  "/debugpdf": "Debug Pdf",
-  "/forgetpassword": "forgot-password",
-  "/success": "success",
-  "/addadmin": "add-admin",
-  "/upgrade-2.1": "add-admin",
-  "/draftDocument": "New Document",
-  "/login/:base64url": "Request Signatures",
-
+  "/": "登录",
+  "/dashboard/35KBoSgoAK": "制度门户",
+  "/policy-search": "制度查询模块",
+  "/policy-management": "制度管理",
+  "/compliance-ai": "合规AI助手",
+  "/profile": "个人信息",
+  "/changepassword": "修改密码",
+  "/forgetpassword": "忘记密码",
+  "/addadmin": "初始化管理员",
+  "/upgrade-2.1": "初始化管理员",
+  "/success": "成功",
+  "/verify-document": "制度验真",
+  "/signaturePdf/:docId": "制度签署",
+  "/placeHolderSign/:docId": "发起签署",
+  "/login/:base64url": "签署入口"
 };
 
 function resolveTitle(pathname, override) {
@@ -51,14 +28,13 @@ function resolveTitle(pathname, override) {
       return label;
     }
   }
-  return "";
+  return "制度系统";
 }
 
 export default function Title() {
   const { pathname, state } = useLocation();
   const { t } = useTranslation();
-  const appName =
-    "OpenSign™";
+  const appName = "制度系统";
   const logo = useMemo(() => localStorage.getItem("favicon"), []);
   const prefix = useMemo(
     () => resolveTitle(pathname, state?.title),
