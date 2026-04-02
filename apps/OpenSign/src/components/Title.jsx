@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useManifestUrl } from "../hook/useManifestUrl";
 
 const TITLE_MAP = {
-  "/": "登录",
+  "/": "制度门户",
   "/dashboard/35KBoSgoAK": "制度门户",
   "/policy-search": "制度查询模块",
   "/policy-management": "制度管理",
