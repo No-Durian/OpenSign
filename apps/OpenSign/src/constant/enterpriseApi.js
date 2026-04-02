@@ -36,8 +36,38 @@ async function enterpriseGet(path, config = {}) {
   return data;
 }
 
+async function enterprisePost(path, payload, config = {}) {
+  const { data } = await axios.post(getEnterpriseApiUrl(path), payload, {
+    timeout: 10000,
+    ...config
+  });
+  return data;
+}
+
 export async function fetchEnterpriseConfig() {
   return enterpriseGet("/config");
+}
+
+export async function updateEnterpriseConfig(payload) {
+  try {
+    return await enterprisePost("/config", payload);
+  } catch (error) {
+    if (error?.response?.status === 404) {
+      try {
+        const { data } = await axios.put(
+          getEnterpriseApiUrl("/config"),
+          payload,
+          {
+            timeout: 10000
+          }
+        );
+        return data;
+      } catch {
+        return enterprisePost("/config/update", payload);
+      }
+    }
+    throw error;
+  }
 }
 
 export async function fetchEnterpriseOverview() {

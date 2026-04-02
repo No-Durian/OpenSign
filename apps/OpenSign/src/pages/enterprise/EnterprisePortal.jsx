@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import EnterpriseShell, {
   EnterpriseCard
 } from "../../components/enterprise/EnterpriseShell";
 import {
   buildPolicyFileUrl,
-  fetchEnterpriseOverview
+  fetchEnterpriseOverview,
+  updateEnterpriseConfig
 } from "../../constant/enterpriseApi";
 import Loader from "../../primitives/Loader";
 
@@ -21,6 +22,19 @@ const EnterprisePortal = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [configNotice, setConfigNotice] = useState("");
+  const [configForm, setConfigForm] = useState({
+    libraryRoot: "",
+    expiryRoot: "",
+    managementRoot: "",
+    aiAssistantUrl: ""
+  });
+  const pickerRefs = useRef({
+    libraryRoot: null,
+    expiryRoot: null,
+    managementRoot: null
+  });
 
   useEffect(() => {
     let active = true;
@@ -28,6 +42,12 @@ const EnterprisePortal = () => {
       .then((response) => {
         if (!active) return;
         setData(response);
+        setConfigForm({
+          libraryRoot: response?.config?.libraryRoot || "",
+          expiryRoot: response?.config?.expiryRoot || "",
+          managementRoot: response?.config?.managementRoot || "",
+          aiAssistantUrl: response?.config?.aiAssistantUrl || ""
+        });
         setError("");
       })
       .catch((err) => {
@@ -43,6 +63,43 @@ const EnterprisePortal = () => {
       active = false;
     };
   }, []);
+
+  const handleConfigChange = (key) => (event) => {
+    const value = event.target.value;
+    setConfigForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSaveConfig = async () => {
+    setSaving(true);
+    setConfigNotice("");
+    try {
+      await updateEnterpriseConfig(configForm);
+      const latest = await fetchEnterpriseOverview();
+      setData(latest);
+      setConfigNotice("配置已保存，系统已按新路径重新加载。");
+    } catch (err) {
+      setConfigNotice(
+        err?.response?.data?.message || err.message || "保存配置失败"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const triggerFolderPicker = (key) => {
+    pickerRefs.current[key]?.click?.();
+  };
+
+  const handleFolderPicked = (key) => (event) => {
+    const file = event.target.files?.[0];
+    const folderName = file?.webkitRelativePath?.split("/")?.[0];
+    if (folderName) {
+      setConfigForm((prev) => ({ ...prev, [key]: folderName }));
+      setConfigNotice(
+        "已读取文件夹名称。浏览器安全限制下无法直接读取绝对路径，请补全为服务器本地绝对路径后保存。"
+      );
+    }
+  };
 
   const summaryCards = useMemo(() => {
     if (!data) return [];
@@ -105,26 +162,114 @@ const EnterprisePortal = () => {
 
       <EnterpriseCard
         title="系统配置"
-        subtitle="制度查询会先读取检查过期文件目录中的 Excel 台账，再去制度内容目录匹配原文。"
+        subtitle="可直接在前端维护路径。保存后系统会按新配置读取目录并更新检索。"
       >
         <div className="space-y-3 text-sm">
-          <div>
-            <p className="font-semibold">制度内容目录</p>
-            <p className="break-all text-base-content/70">
-              {data?.config?.libraryRoot || "未配置"}
-            </p>
-          </div>
-          <div>
-            <p className="font-semibold">检查过期文件目录</p>
-            <p className="break-all text-base-content/70">
-              {data?.config?.expiryRoot || "未配置"}
-            </p>
-          </div>
-          <div>
-            <p className="font-semibold">制度管理目录</p>
-            <p className="break-all text-base-content/70">
-              {data?.config?.managementRoot || "未配置"}
-            </p>
+          <label className="form-control gap-1">
+            <span className="font-semibold">制度内容目录</span>
+            <div className="flex gap-2">
+              <input
+                className="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm"
+                value={configForm.libraryRoot}
+                onChange={handleConfigChange("libraryRoot")}
+                placeholder="例如：D:/合规/制度内容"
+              />
+              <button
+                type="button"
+                className="op-btn op-btn-outline"
+                onClick={() => triggerFolderPicker("libraryRoot")}
+              >
+                选择文件夹
+              </button>
+              <input
+                ref={(node) => {
+                  pickerRefs.current.libraryRoot = node;
+                }}
+                className="hidden"
+                type="file"
+                webkitdirectory="true"
+                directory=""
+                onChange={handleFolderPicked("libraryRoot")}
+              />
+            </div>
+          </label>
+          <label className="form-control gap-1">
+            <span className="font-semibold">检查过期文件目录（Excel 台账）</span>
+            <div className="flex gap-2">
+              <input
+                className="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm"
+                value={configForm.expiryRoot}
+                onChange={handleConfigChange("expiryRoot")}
+                placeholder="例如：D:/合规/检查过期文件"
+              />
+              <button
+                type="button"
+                className="op-btn op-btn-outline"
+                onClick={() => triggerFolderPicker("expiryRoot")}
+              >
+                选择文件夹
+              </button>
+              <input
+                ref={(node) => {
+                  pickerRefs.current.expiryRoot = node;
+                }}
+                className="hidden"
+                type="file"
+                webkitdirectory="true"
+                directory=""
+                onChange={handleFolderPicked("expiryRoot")}
+              />
+            </div>
+          </label>
+          <label className="form-control gap-1">
+            <span className="font-semibold">制度管理目录</span>
+            <div className="flex gap-2">
+              <input
+                className="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm"
+                value={configForm.managementRoot}
+                onChange={handleConfigChange("managementRoot")}
+                placeholder="例如：D:/合规/制度管理"
+              />
+              <button
+                type="button"
+                className="op-btn op-btn-outline"
+                onClick={() => triggerFolderPicker("managementRoot")}
+              >
+                选择文件夹
+              </button>
+              <input
+                ref={(node) => {
+                  pickerRefs.current.managementRoot = node;
+                }}
+                className="hidden"
+                type="file"
+                webkitdirectory="true"
+                directory=""
+                onChange={handleFolderPicked("managementRoot")}
+              />
+            </div>
+          </label>
+          <label className="form-control gap-1">
+            <span className="font-semibold">AI 助手地址</span>
+            <input
+              className="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm"
+              value={configForm.aiAssistantUrl}
+              onChange={handleConfigChange("aiAssistantUrl")}
+              placeholder="http://127.0.0.1:3000"
+            />
+          </label>
+          <div className="flex flex-wrap gap-3 items-center">
+            <button
+              className="op-btn op-btn-primary"
+              type="button"
+              onClick={handleSaveConfig}
+              disabled={saving}
+            >
+              {saving ? "保存中..." : "保存路径配置"}
+            </button>
+            {configNotice ? (
+              <span className="text-sm text-base-content/70">{configNotice}</span>
+            ) : null}
           </div>
         </div>
       </EnterpriseCard>
