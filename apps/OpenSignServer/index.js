@@ -162,6 +162,11 @@ export const config = {
   // for fix Adapter prototype don't match expected prototype
   push: { queueOptions: { disablePushWorker: true } },
 };
+
+const enterpriseOnlyMode = String(process.env.ENTERPRISE_ONLY || '')
+  .trim()
+  .toLowerCase();
+const isEnterpriseOnly = ['1', 'true', 'yes', 'on'].includes(enterpriseOnlyMode);
 // Client-keys like the javascript key or the .NET key are not necessary with parse-server
 // If you wish you require them, you can set them as options in the initialization above:
 // javascriptKey, restAPIKey, dotNetKey, clientKey
@@ -214,7 +219,7 @@ app.use(async function (req, res, next) {
 app.use('/public', express.static(path.join(__dirname, '/public')));
 
 // Serve the Parse API on the /parse URL prefix
-if (!process.env.TESTING) {
+if (!process.env.TESTING && !isEnterpriseOnly) {
   const mountPath = process.env.PARSE_MOUNT || '/app';
   try {
     const server = new ParseServer(config);
@@ -241,6 +246,10 @@ if (!process.env.TESTING) {
   httpServer.headersTimeout = 100000; // in milliseconds
   httpServer.listen(port, '0.0.0.0', function () {
     console.log('opensign-server running on port ' + port + '.');
+    if (isEnterpriseOnly) {
+      console.log('enterprise-only mode enabled: Parse Server and MongoDB are disabled.');
+      return;
+    }
     const isWindows = process.platform === 'win32';
     // console.log('isWindows', isWindows);
     runDbMigrations();

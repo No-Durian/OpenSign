@@ -17,9 +17,6 @@ const ComplianceAssistant = () => {
         if (!active) return;
         const targetUrl = data.url || "";
         setAssistantUrl(targetUrl);
-        if (targetUrl) {
-          window.location.assign(targetUrl);
-        }
       })
       .catch((err) => {
         if (!active) return;

@@ -7,6 +7,7 @@ import Lazy from "./primitives/LazyPage";
 import Loader from "./primitives/Loader";
 import { serverUrl_fn } from "./constant/appinfo";
 import Title from "./components/Title";
+import HomeLayout from "./layout/HomeLayout";
 
 const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
 const PolicySearch = lazyWithRetry(
@@ -51,23 +52,40 @@ function App() {
         <BrowserRouter>
           <Title />
           <Routes>
-            <Route
-              path="/"
-              element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
-            />
-            <Route path="/dashboard/:id" element={<Lazy Page={Dashboard} />} />
-            <Route
-              path="/policy-search"
-              element={<Lazy Page={PolicySearch} />}
-            />
-            <Route
-              path="/policy-management"
-              element={<Lazy Page={PolicyManagement} />}
-            />
-            <Route
-              path="/compliance-ai"
-              element={<Lazy Page={ComplianceAssistant} />}
-            />
+            <Route element={<HomeLayout />}>
+              <Route
+                path="/"
+                element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
+              />
+              <Route
+                path="/dashboard/:id"
+                element={<Lazy Page={Dashboard} />}
+              />
+              <Route
+                path="/policy-search"
+                element={<Lazy Page={PolicySearch} />}
+              />
+              <Route
+                path="/policy-management"
+                element={<Lazy Page={PolicyManagement} />}
+              />
+              <Route
+                path="/compliance-ai"
+                element={<Lazy Page={ComplianceAssistant} />}
+              />
+              <Route
+                path="/profile"
+                element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
+              />
+              <Route
+                path="/changepassword"
+                element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
+              />
+              <Route
+                path="/verify-document"
+                element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
+              />
+            </Route>
             <Route path="*" element={<PageNotFound />} />
           </Routes>
         </BrowserRouter>

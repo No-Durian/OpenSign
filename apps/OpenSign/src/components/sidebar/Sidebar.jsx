@@ -19,16 +19,14 @@ const Sidebar = () => {
   const isOpen = useSelector((state) => state.sidebar.isOpen);
   const [menuList, setmenuList] = useState([]);
   const [submenuOpen, setSubmenuOpen] = useState(false);
-  const username = localStorage.getItem("username");
+  const username = localStorage.getItem("username") || "制度系统用户";
   const image = localStorage.getItem("profileImg") || dp;
   const tenantname = localStorage.getItem("Extand_Class")
     ? JSON.parse(localStorage.getItem("Extand_Class"))?.[0]?.Company
     : "";
 
   useEffect(() => {
-    if (localStorage.getItem("accesstoken")) {
-      menuItem();
-    }
+    menuItem();
   }, []);
 
   const closeSidebar = () => {
@@ -58,7 +56,7 @@ const Sidebar = () => {
   };
   const handleProfile = () => {
     closeSidebar();
-    navigate("/profile");
+    navigate("/dashboard/35KBoSgoAK");
   };
   return (
     <aside
