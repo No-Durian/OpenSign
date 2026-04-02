@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-import { getEnterpriseConfig } from './enterpriseConfig.js';
+import { getEnterpriseConfig, saveEnterpriseConfig } from './enterpriseConfig.js';
 
 const require = createRequire(import.meta.url);
 
@@ -463,7 +463,7 @@ async function readWorkbookRecords(expiryRoot) {
 }
 
 async function getOverviewData() {
-  const { libraryRoot, expiryRoot, managementRoot, aiAssistantUrl } = getEnterpriseConfig();
+  const { libraryRoot, expiryRoot, managementRoot, aiAssistantUrl } = await getEnterpriseConfig();
   const libraries = await getLibraries(libraryRoot);
   const fileLookup = buildFileLookup(libraries);
   const expiryRecords = await readWorkbookRecords(expiryRoot);
@@ -508,7 +508,7 @@ async function getOverviewData() {
 }
 
 async function getSearchPayload(filters = {}) {
-  const { libraryRoot, expiryRoot } = getEnterpriseConfig();
+  const { libraryRoot, expiryRoot } = await getEnterpriseConfig();
   const libraries = await getLibraries(libraryRoot);
   const fileLookup = buildFileLookup(libraries);
   const rows = await readWorkbookRecords(expiryRoot);
@@ -577,7 +577,7 @@ async function getSearchPayload(filters = {}) {
 }
 
 async function readManagementData() {
-  const { managementRoot } = getEnterpriseConfig();
+  const { managementRoot } = await getEnterpriseConfig();
   const groups = {
     newItems: ['新增', '新增文件'],
     modifiedItems: ['有修改', '修改', '修订'],
@@ -633,12 +633,39 @@ router.get('/overview', async (_req, res) => {
   }
 });
 
-router.get('/config', (_req, res) => {
-  const config = getEnterpriseConfig();
+router.get('/config', async (_req, res) => {
+  const config = await getEnterpriseConfig();
   res.json({
     ...config,
     xlsxAvailable: Boolean(XLSX),
   });
+});
+
+router.post('/config', async (req, res) => {
+  try {
+    const libraryRoot = String(req.body?.libraryRoot || '').trim();
+    const expiryRoot = String(req.body?.expiryRoot || '').trim();
+    const managementRoot = String(req.body?.managementRoot || '').trim();
+    const aiAssistantUrl = String(req.body?.aiAssistantUrl || '').trim();
+
+    const nextConfig = {};
+    if (libraryRoot) nextConfig.libraryRoot = libraryRoot;
+    if (expiryRoot) nextConfig.expiryRoot = expiryRoot;
+    if (managementRoot) nextConfig.managementRoot = managementRoot;
+    if (aiAssistantUrl) nextConfig.aiAssistantUrl = aiAssistantUrl;
+
+    if (!Object.keys(nextConfig).length) {
+      return res.status(400).json({ message: '未提供可更新的配置项。' });
+    }
+
+    const saved = await saveEnterpriseConfig(nextConfig);
+    res.json({
+      ...saved,
+      xlsxAvailable: Boolean(XLSX),
+    });
+  } catch (error) {
+    res.status(500).json({ message: '更新制度配置失败。', details: error.message });
+  }
 });
 
 router.get('/search/options', async (_req, res) => {
@@ -668,8 +695,8 @@ router.get('/management', async (_req, res) => {
   }
 });
 
-router.get('/assistant', (_req, res) => {
-  const { aiAssistantUrl } = getEnterpriseConfig();
+router.get('/assistant', async (_req, res) => {
+  const { aiAssistantUrl } = await getEnterpriseConfig();
   res.json({ url: aiAssistantUrl });
 });
 
@@ -703,7 +730,7 @@ async function findLibraryFileByName(fileLookup, fileName, preferredLibrary = ''
 
 router.get('/file-by-name', async (req, res) => {
   try {
-    const { libraryRoot } = getEnterpriseConfig();
+    const { libraryRoot } = await getEnterpriseConfig();
     const fileName = req.query.fileName;
     const library = String(req.query.library || '').trim();
     if (!fileName) {
@@ -731,7 +758,7 @@ router.get('/file-by-name', async (req, res) => {
 
 router.get('/file', async (req, res) => {
   try {
-    const { libraryRoot, managementRoot } = getEnterpriseConfig();
+    const { libraryRoot, managementRoot } = await getEnterpriseConfig();
     const scope = req.query.scope || 'library';
     const relativePath = normalizeRelativePathForFilesystem(req.query.relativePath);
     if (!relativePath) {

@@ -36,8 +36,20 @@ async function enterpriseGet(path, config = {}) {
   return data;
 }
 
+async function enterprisePost(path, payload, config = {}) {
+  const { data } = await axios.post(getEnterpriseApiUrl(path), payload, {
+    timeout: 10000,
+    ...config
+  });
+  return data;
+}
+
 export async function fetchEnterpriseConfig() {
   return enterpriseGet("/config");
+}
+
+export async function updateEnterpriseConfig(payload) {
+  return enterprisePost("/config", payload);
 }
 
 export async function fetchEnterpriseOverview() {
