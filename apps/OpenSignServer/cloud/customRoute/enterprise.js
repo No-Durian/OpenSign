@@ -641,7 +641,7 @@ router.get('/config', async (_req, res) => {
   });
 });
 
-router.post('/config', async (req, res) => {
+async function updateConfigHandler(req, res) {
   try {
     const libraryRoot = String(req.body?.libraryRoot || '').trim();
     const expiryRoot = String(req.body?.expiryRoot || '').trim();
@@ -666,7 +666,11 @@ router.post('/config', async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: '更新制度配置失败。', details: error.message });
   }
-});
+}
+
+router.post('/config', updateConfigHandler);
+router.put('/config', updateConfigHandler);
+router.post('/config/update', updateConfigHandler);
 
 router.get('/search/options', async (_req, res) => {
   try {

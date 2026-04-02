@@ -49,7 +49,25 @@ export async function fetchEnterpriseConfig() {
 }
 
 export async function updateEnterpriseConfig(payload) {
-  return enterprisePost("/config", payload);
+  try {
+    return await enterprisePost("/config", payload);
+  } catch (error) {
+    if (error?.response?.status === 404) {
+      try {
+        const { data } = await axios.put(
+          getEnterpriseApiUrl("/config"),
+          payload,
+          {
+            timeout: 10000
+          }
+        );
+        return data;
+      } catch {
+        return enterprisePost("/config/update", payload);
+      }
+    }
+    throw error;
+  }
 }
 
 export async function fetchEnterpriseOverview() {

@@ -1,24 +1,16 @@
 import { useState, useEffect } from "react";
-import { lazyWithRetry, hideUpgradeProgress } from "./utils";
+import { hideUpgradeProgress } from "./utils";
 import { Routes, Route, BrowserRouter, Navigate } from "react-router";
 import { pdfjs } from "react-pdf";
 import PageNotFound from "./pages/PageNotFound";
-import Lazy from "./primitives/LazyPage";
 import Loader from "./primitives/Loader";
 import { serverUrl_fn } from "./constant/appinfo";
 import Title from "./components/Title";
 import HomeLayout from "./layout/HomeLayout";
-
-const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
-const PolicySearch = lazyWithRetry(
-  () => import("./pages/enterprise/PolicySearch")
-);
-const PolicyManagement = lazyWithRetry(
-  () => import("./pages/enterprise/PolicyManagement")
-);
-const ComplianceAssistant = lazyWithRetry(
-  () => import("./pages/enterprise/ComplianceAssistant")
-);
+import Dashboard from "./pages/Dashboard";
+import PolicySearch from "./pages/enterprise/PolicySearch";
+import PolicyManagement from "./pages/enterprise/PolicyManagement";
+import ComplianceAssistant from "./pages/enterprise/ComplianceAssistant";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
 const AppLoader = () => {
@@ -57,22 +49,10 @@ function App() {
                 path="/"
                 element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
               />
-              <Route
-                path="/dashboard/:id"
-                element={<Lazy Page={Dashboard} />}
-              />
-              <Route
-                path="/policy-search"
-                element={<Lazy Page={PolicySearch} />}
-              />
-              <Route
-                path="/policy-management"
-                element={<Lazy Page={PolicyManagement} />}
-              />
-              <Route
-                path="/compliance-ai"
-                element={<Lazy Page={ComplianceAssistant} />}
-              />
+              <Route path="/dashboard/:id" element={<Dashboard />} />
+              <Route path="/policy-search" element={<PolicySearch />} />
+              <Route path="/policy-management" element={<PolicyManagement />} />
+              <Route path="/compliance-ai" element={<ComplianceAssistant />} />
               <Route
                 path="/profile"
                 element={<Navigate to="/dashboard/35KBoSgoAK" replace />}
